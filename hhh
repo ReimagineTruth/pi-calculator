@@ -1,0 +1,37 @@
+//@version=5
+strategy("PIUSDT.P Auto-Trader", overlay=true)
+
+// 📌 EMA SETTINGS
+ema13 = ta.ema(close, 13)
+ema50 = ta.ema(close, 50)
+
+// 📌 RSI SETTINGS
+rsi = ta.rsi(close, 14)
+
+// 📌 ENTRY CONDITIONS
+longEntry = ta.crossover(ema13, ema50) and rsi < 50
+shortEntry = ta.crossunder(ema13, ema50) and rsi > 50
+
+// 📌 EXIT CONDITIONS
+longExit = ta.crossunder(ema13, ema50) or rsi > 70
+shortExit = ta.crossover(ema13, ema50) or rsi < 30
+
+// 📌 EXECUTE ORDERS
+if (longEntry)
+    strategy.entry("Long", strategy.long)
+
+if (shortEntry)
+    strategy.entry("Short", strategy.short)
+
+if (longExit)
+    strategy.close("Long")
+
+if (shortExit)
+    strategy.close("Short")
+
+// 📌 ALERT SYSTEM (for real-time execution)
+alertcondition(longEntry, title="BUY Signal", message="Buy PIUSDT.P NOW!")
+alertcondition(shortEntry, title="SELL Signal", message="Sell PIUSDT.P NOW!")
+
+plot(ema13, color=color.blue, title="EMA 13")
+plot(ema50, color=color.red, title="EMA 50")
