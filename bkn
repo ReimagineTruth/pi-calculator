@@ -1,0 +1,50 @@
+//@version=5
+strategy("PIUSDT.P Smart Trading Bot", overlay=true)
+
+// Define session times
+session_london = timestamp(year, month, day, 8, 0) < time and time < timestamp(year, month, day, 16, 0)
+session_newyork = timestamp(year, month, day, 13, 0) < time and time < timestamp(year, month, day, 21, 0)
+session_overlap = timestamp(year, month, day, 13, 0) < time and time < timestamp(year, month, day, 16, 0)
+
+// Define EMAs
+ema_short = ta.ema(close, 9)
+ema_long = ta.ema(close, 21)
+
+// Define volume condition (Above average volume)
+vol_condition = volume > ta.sma(volume, 20)
+
+// Define trading conditions
+long_condition = ta.crossover(ema_short, ema_long) and (session_london or session_overlap) and vol_condition
+short_condition = ta.crossunder(ema_short, ema_long) and session_newyork and vol_condition
+
+// Stop-Loss and Take-Profit (Risk-Reward 1:2)
+long_sl = close - (close * 0.01)  // 1% SL
+long_tp = close + (close * 0.02)  // 2% TP
+short_sl = close + (close * 0.01) // 1% SL
+short_tp = close - (close * 0.02) // 2% TP
+
+// Execute trades
+if long_condition
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Long Exit", from_entry="Long", stop=long_sl, limit=long_tp)
+
+if short_condition
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Short Exit", from_entry="Short", stop=short_sl, limit=short_tp)
+
+// Plot EMAs
+plot(ema_short, title="EMA 9", color=color.blue, linewidth=2)
+plot(ema_long, title="EMA 21", color=color.red, linewidth=2)
+
+// Display session background colors
+bgcolor(session_london ? color.blue : na, transp=85)
+bgcolor(session_newyork ? color.red : na, transp=85)
+bgcolor(session_overlap ? color.green : na, transp=85)
+
+// Alerts for entry signals
+alertcondition(long_condition, title="Long Signal", message="Go Long on PIUSDT.P 🚀")
+alertcondition(short_condition, title="Short Signal", message="Go Short on PIUSDT.P 🔻")
+
+// Strategy Summary
+strategy.close("Long", when=not session_london and not session_overlap)
+strategy.close("Short", when=not session_newyork)
