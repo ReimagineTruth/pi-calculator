@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PiTrack - Trading & Converter</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+    <script src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js" async></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@1.2.1/dist/chartjs-plugin-zoom.min.js"></script>
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+            background: linear-gradient(135deg, #f0f4f8, #d9e2ec);
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            animation: fadeInBody 0.5s ease-in;
+        }
+        @keyframes fadeInBody {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .app-wrapper {
+            width: 100%;
+            max-width: 480px;
+            height: 100vh;
+            background: rgba(255, 255, 255, 0.95);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            transition: border-radius 0.3s ease, border 0.3s ease;
+        }
+        .desktop-mode .app-wrapper {
+            border-radius: 20px;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
+        }
+        .mobile-mode .app-wrapper {
+            border-radius: 0;
+            border: none;
+            height: 100%;
+        }
+        .header {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            max-width: 480px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 1rem;
+            text-align: center;
+            border-bottom: 1px solid #e5e7eb;
+            z-index: 10;
+        }
+        .content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 4rem 1rem 1rem;
+        }
+        .section {
+            margin-bottom: 1.5rem;
+            animation: slideInSection 0.5s ease-out;
+        }
+        @keyframes slideInSection {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        h2, h3 {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            text-align: center;
+        }
+        input, select, button {
+            width: 100%;
+            padding: 0.75rem;
+            border-radius: 10px;
+            border: 1px solid #e5e7eb;
+            font-size: 1rem;
+            box-sizing: border-box;
+            transition: all 0.3s ease;
+        }
+        input:focus, select:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 5px rgba(59, 130, 246, 0.5);
+            outline: none;
+        }
+        button {
+            background: linear-gradient(90deg, #3b82f6, #1d4ed8);
+            border: none;
+            color: #fff;
+            box-shadow: 0 4px 10px rgba(59, 130, 246, 0.4);
+            margin-top: 0.5rem;
+            transition: transform 0.3s ease;
+        }
+        button:hover {
+            background: linear-gradient(90deg, #1d4ed8, #3b82f6);
+            transform: scale(1.02);
+            animation: bounceButton 0.3s ease;
+        }
+        @keyframes bounceButton {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1.02); }
+        }
+        #convert-btn {
+            font-size: 1.25rem;
+            font-weight: 700;
+            padding: 1rem;
+        }
+        .spinner {
+            display: inline-block;
+            width: 1rem;
+            height: 1rem;
+            border: 2px solid #fff;
+            border-top: 2px solid transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 0.5rem;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .memo, .tips-container ul li {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 0.75rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            color: #92400e;
+            margin-top: 0.5rem;
+        }
+        .chart-container, .tips-container, .bot-container, .history-container, .trading-container, .settings-container {
+            border-radius: 10px;
+            padding: 0.75rem;
+            background: #f9fafb;
+            margin-top: 1rem;
+        }
+        .bot-container, .history-container, .trade-history-container {
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        .tweet, .history-item, .trade-item {
+            padding: 0.5rem;
+            border-bottom: 1px solid #e5e7eb;
+            font-size: 0.85rem;
+        }
+        .chart-controls {
+            display: flex;
+            gap: 0.5rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 0.5rem;
+        }
+        .chart-controls button {
+            padding: 0.5rem 1rem;
+            font-size: 0.9rem;
+        }
+        .trading-container #tradingview_chart {
+            height: 400px; /* Increased from 300px for mobile */
+            width: 100%;
+        }
+        .chart-container canvas {
+            height: 300px !important; /* Other charts remain medium size */
+            width: 100%;
+        }
+        .desktop-mode .trading-container #tradingview_chart {
+            height: 450px !important; /* Increased from 350px for desktop */
+        }
+        .desktop-mode .chart-container canvas {
+            height: 350px !important; /* Other charts remain medium size */
+        }
+        .settings-container label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin: 0.5rem 0;
+            font-size: 0.9rem;
+        }
+        .settings-container input[type="number"] {
+            width: 60px;
+        }
+        @media (max-width: 480px) {
+            body {
+                padding: 0;
+            }
+            h2 {
+                font-size: 1.5rem;
+            }
+            h3 {
+                font-size: 1.25rem;
+            }
+            #convert-btn {
+                font-size: 1rem;
+                padding: 0.75rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-wrapper">
+        <div class="header">
+            <h2>PiTrack</h2>
+        </div>
+        <div class="content">
+            <div class="section chart-container">
+                <h3>PIUSDT Chart</h3>
+                <div class="tradingview-widget-container" id="tradingview_chart" style="height:100%;width:100%">
+                    <div class="tradingview-widget-container__widget" style="height:calc(100% - 32px);width:100%"></div>
+                    <div class="tradingview-widget-copyright">
+                        <a href="https://www.tradingview.com/" rel="noopener nofollow" target="_blank">
+                            <span class="blue-text">Track all markets on TradingView</span>
+                        </a>
+                    </div>
+                </div>
+                <script type="text/javascript">
+                    (function() {
+                        const script = document.createElement("script");
+                        script.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
+                        script.type = "text/javascript";
+                        script.async = true;
+                        script.innerHTML = JSON.stringify({
+                            "autosize": true,
+                            "symbol": "BITGET:PIUSDT",
+                            "interval": "60",
+                            "timezone": "Etc/UTC",
+                            "theme": "dark",
+                            "style": "1",
+                            "locale": "en",
+                            "allow_symbol_change": false,
+                            "save_image": false,
+                            "calendar": false,
+                            "hide_volume": true,
+                            "support_host": "https://www.tradingview.com"
+                        });
+                        document.getElementById("tradingview_chart").appendChild(script);
+                    })();
+                </script>
+            </div>
+            <div class="section">
+                <p class="text-base mb-2 text-center" id="current-rate">Fetching exchange rate...</p>
+                <input type="number" placeholder="Enter Pi amount" step="0.01" aria-label="Pi amount" />
+                <select id="currency-select" aria-label="Select currency" class="mt-2">
+                    <option value="usd">USD</option>
+                    <option value="eur">EUR</option>
+                    <option value="gbp">GBP</option>
+                    <option value="jpy">JPY</option>
+                    <option value="aud">AUD</option>
+                    <option value="cad">CAD</option>
+                    <option value="chf">CHF</option>
+                    <option value="cny">CNY</option>
+                    <option value="inr">INR</option>
+                    <option value="krw">KRW</option>
+                    <option value="sgd">SGD</option>
+                    <option value="hkd">HKD</option>
+                    <option value="idr">IDR</option>
+                    <option value="myr">MYR</option>
+                    <option value="php">PHP</option>
+                    <option value="thb">THB</option>
+                    <option value="vnd">VND</option>
+                </select>
+                <button id="convert-btn" aria-label="Convert Pi amount" class="mt-2">Convert</button>
+                <p class="text-lg font-semibold mt-2 text-center" id="equivalent">Equivalent: 0.00</p>
+            </div>
+            <div class="memo">
+                <strong>About:</strong> Unofficial PIUSDT trading & Pi converter. Updates from @PiCoreTeam. Not affiliated with Pi Network.
+            </div>
+            <div class="tips-container">
+                <h3>Why Hold Pi?</h3>
+                <ul>
+                    <li><strong>Value:</strong> Potential rises post-mainnet.</li>
+                    <li><strong>Growth:</strong> Adoption boosts value.</li>
+                    <li><strong>Community:</strong> Supports Pi’s success.</li>
+                    <li><strong>Reward:</strong> Free to mine, high gains.</li>
+                </ul>
+            </div>
+            <div class="settings-container">
+                <h3>Settings</h3>
+                <label><input type="checkbox" id="auto-refresh" checked> Auto-Refresh</label>
+                <label>RSI Threshold: <input type="number" id="rsi-threshold" value="30" min="0" max="100" step="1"></label>
+            </div>
+            <div class="history-container">
+                <h3>Conversion History</h3>
+                <div id="conversion-history"></div>
+            </div>
+            <div class="trading-container">
+                <h3>PIUSDT Trading</h3>
+                <p id="trading-status">Waiting for signals...</p>
+                <p id="current-price">Price: Loading...</p>
+                <div class="trade-history-container">
+                    <h4>Trade History</h4>
+                    <div id="trade-history"></div>
+                </div>
+            </div>
+            <div class="bot-container">
+                <h3>AI Bot - @mrwainofficial</h3>
+                <div id="tweet-feed"></div>
+            </div>
+            <div class="chart-container">
+                <h3>Real-Time Analytics</h3>
+                <canvas id="exchangeRateChart"></canvas>
+                <div class="chart-controls">
+                    <button onclick="toggleChartType('exchangeRateChart')">Type</button>
+                    <button onclick="resetChartZoom('exchangeRateChart')">Reset</button>
+                    <button onclick="toggleFullscreen('exchangeRateChart')">Full</button>
+                </div>
+            </div>
+            <div class="chart-container">
+                <h3>Historical Price</h3>
+                <canvas id="historicalChart"></canvas>
+                <div class="chart-controls">
+                    <button onclick="toggleChartType('historicalChart')">Type</button>
+                    <button onclick="resetChartZoom('historicalChart')">Reset</button>
+                    <button onclick="toggleFullscreen('historicalChart')">Full</button>
+                    <button class="mt-2 w-full bg-green-500 hover:bg-green-600" onclick="exportChart('historicalChart', 'PiTrack_Historical')">CSV</button>
+                </div>
+            </div>
+            <div class="chart-container">
+                <h3>Fire Sale</h3>
+                <canvas id="piChart"></canvas>
+                <div class="chart-controls">
+                    <button onclick="toggleChartType('piChart')">Type</button>
+                    <button onclick="resetChartZoom('piChart')">Reset</button>
+                    <button onclick="toggleFullscreen('piChart')">Full</button>
+                    <button class="mt-2 w-full bg-green-500 hover:bg-green-600" onclick="exportChart('piChart', 'PiTrack_Fire_Sale')">CSV</button>
+                </div>
+            </div>
+            <div class="chart-container">
+                <h3>Rainbow</h3>
+                <canvas id="piRainbowChart"></canvas>
+                <div class="chart-controls">
+                    <button onclick="toggleChartType('piRainbowChart')">Type</button>
+                    <button onclick="resetChartZoom('piRainbowChart')">Reset</button>
+                    <button onclick="toggleFullscreen('piRainbowChart')">Full</button>
+                    <button class="mt-2 w-full bg-green-500 hover:bg-green-600" onclick="exportChart('piRainbowChart', 'PiTrack_Rainbow')">CSV</button>
+                </div>
+            </div>
+            <div class="chart-container">
+                <h3>Blocks</h3>
+                <canvas id="piBlocksChart"></canvas>
+                <div class="chart-controls">
+                    <button onclick="toggleChartType('piBlocksChart')">Type</button>
+                    <button onclick="resetChartZoom('piBlocksChart')">Reset</button>
+                    <button onclick="toggleFullscreen('piBlocksChart')">Full</button>
+                    <button class="mt-2 w-full bg-green-500 hover:bg-green-600" onclick="exportChart('piBlocksChart', 'PiTrack_Blocks')">CSV</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const piAmountInput = document.querySelector('input[type="number"]');
+        const convertButton = document.getElementById('convert-btn');
+        const equivalentText = document.getElementById('equivalent');
+        const exchangeRateText = document.getElementById('current-rate');
+        const currencySelect = document.getElementById('currency-select');
+        const conversionHistory = document.getElementById('conversion-history');
+        const tweetFeed = document.getElementById('tweet-feed');
+        const tradingStatus = document.getElementById('trading-status');
+        const currentPriceText = document.getElementById('current-price');
+        const tradeHistory = document.getElementById('trade-history');
+        const autoRefreshCheckbox = document.getElementById('auto-refresh');
+        const rsiThresholdInput = document.getElementById('rsi-threshold');
+        const ctx = document.getElementById('exchangeRateChart').getContext('2d');
+        const historicalCtx = document.getElementById('historicalChart').getContext('2d');
+        const piCtx = document.getElementById('piChart').getContext('2d');
+        const piRainbowCtx = document.getElementById('piRainbowChart').getContext('2d');
+        const piBlocksCtx = document.getElementById('piBlocksChart').getContext('2d');
+        let exchangeRates = {};
+        let chart, historicalChart, piFireSaleChart, piRainbowChart, piBlocksChart;
+        let priceHistory = [];
+
+        const currencySymbols = {
+            usd: '$', eur: '€', gbp: '£', jpy: '¥', aud: 'A$', cad: 'C$', chf: 'CHF',
+            cny: '¥', inr: '₹', krw: '₩', sgd: 'S$', hkd: 'HK$', idr: 'Rp', myr: 'RM',
+            php: '₱', thb: '฿', vnd: '₫'
+        };
+
+        // Device Detection and Mode Switching
+        function updateDeviceMode() {
+            const appWrapper = document.querySelector('.app-wrapper');
+            if (window.innerWidth <= 480) {
+                appWrapper.classList.remove('desktop-mode');
+                appWrapper.classList.add('mobile-mode');
+            } else {
+                appWrapper.classList.remove('mobile-mode');
+                appWrapper.classList.add('desktop-mode');
+            }
+        }
+
+        // Initial mode check and resize listener
+        updateDeviceMode();
+        window.addEventListener('resize', updateDeviceMode);
+
+        const showLoading = (element, show) => {
+            if (show) {
+                element.innerHTML += '<span class="spinner"></span>';
+                element.disabled = true;
+            } else {
+                element.innerHTML = element.innerHTML.replace(/<span class="spinner"><\/span>/, '');
+                element.disabled = false;
+            }
+        };
+
+        const fetchExchangeRates = async () => {
+            if (!autoRefreshCheckbox.checked) return;
+            showLoading(exchangeRateText, true);
+            try {
+                const response = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=pi-network-iou&vs_currencies=usd,eur,gbp,jpy,aud,cad,chf,cny,inr,krw,sgd,hkd,idr,myr,php,thb,vnd");
+                const data = await response.json();
+                exchangeRates = data["pi-network-iou"];
+                localStorage.setItem('exchangeRates', JSON.stringify(exchangeRates));
+                localStorage.setItem('lastFetch', new Date().toISOString());
+                exchangeRateText.textContent = `Rate: 1 Pi = $${exchangeRates.usd.toFixed(2)} USD`;
+                updateChart();
+                updateHistoricalChart();
+            } catch (error) {
+                console.error("Error fetching exchange rates:", error);
+                const cachedRates = JSON.parse(localStorage.getItem('exchangeRates'));
+                if (cachedRates) {
+                    exchangeRates = cachedRates;
+                    exchangeRateText.textContent = `Cached: $${exchangeRates.usd.toFixed(2)} USD (${new Date(localStorage.getItem('lastFetch')).toLocaleString()})`;
+                    updateChart();
+                    updateHistoricalChart();
+                } else {
+                    exchangeRateText.textContent = "Rate unavailable";
+                }
+            } finally {
+                showLoading(exchangeRateText, false);
+            }
+        };
+
+        const convertToCurrency = () => {
+            const piValue = parseFloat(piAmountInput.value) || 0;
+            const selectedCurrency = currencySelect.value;
+            showLoading(convertButton, true);
+            setTimeout(() => {
+                if (exchangeRates[selectedCurrency] !== undefined) {
+                    const equivalentAmount = (piValue * exchangeRates[selectedCurrency]).toFixed(2);
+                    const result = `${currencySymbols[selectedCurrency]}${equivalentAmount.replace(/\B(?=(\d{3})+(?!\d))/g, ",")} ${selectedCurrency.toUpperCase()}`;
+                    equivalentText.textContent = result;
+                    addToHistory(piValue, selectedCurrency, result);
+                } else {
+                    equivalentText.textContent = "0.00";
+                }
+                showLoading(convertButton, false);
+            }, 500);
+        };
+
+        const addToHistory = (piValue, currency, result) => {
+            const timestamp = new Date().toLocaleString();
+            const historyItem = document.createElement('div');
+            historyItem.className = 'history-item';
+            historyItem.innerHTML = `<p>${piValue} Pi = ${result} <small>(${timestamp})</small></p>`;
+            conversionHistory.insertBefore(historyItem, conversionHistory.firstChild);
+            if (conversionHistory.children.length > 5) {
+                conversionHistory.removeChild(conversionHistory.lastChild);
+            }
+        };
+
+        const getPriceData = async () => {
+            if (!autoRefreshCheckbox.checked) return null;
+            try {
+                const response = await axios.get("https://api.bitget.com/api/spot/v1/market/ticker?symbol=PIUSDT");
+                const price = parseFloat(response.data.data.close);
+                currentPriceText.textContent = `Price: $${price.toFixed(4)}`;
+                return price;
+            } catch (error) {
+                console.error("Error fetching price:", error);
+                currentPriceText.textContent = "Price unavailable";
+                return null;
+            }
+        };
+
+        const calculateRSI = (period = 14) => {
+            if (priceHistory.length < period + 1) return null;
+            let gains = 0, losses = 0;
+            for (let i = 1; i <= period; i++) {
+                let change = priceHistory[i] - priceHistory[i - 1];
+                if (change > 0) gains += change;
+                else losses -= change;
+            }
+            let avgGain = gains / period;
+            let avgLoss = losses / period;
+            let rs = avgGain / Math.abs(avgLoss);
+            return 100 - (100 / (1 + rs));
+        };
+
+        const calculateMovingAverage = (period = 20) => {
+            if (priceHistory.length < period) return null;
+            let sum = priceHistory.slice(-period).reduce((a, b) => a + b, 0);
+            return sum / period;
+        };
+
+        const checkTradeSignals = async () => {
+            let price = await getPriceData();
+            if (!price) return;
+
+            priceHistory.push(price);
+            if (priceHistory.length > 20) priceHistory.shift();
+
+            let rsi = calculateRSI(14);
+            let ma = calculateMovingAverage(20);
+            let rsiThreshold = parseFloat(rsiThresholdInput.value) || 30;
+
+            if (rsi && ma) {
+                console.log(`RSI: ${rsi.toFixed(2)}, MA: ${ma.toFixed(2)}`);
+                let statusText = "";
+                if (rsi < rsiThreshold && price > ma) {
+                    statusText = "🔵 BUY!";
+                    addToTradeHistory("BUY", price);
+                } else if (rsi > (100 - rsiThreshold) && price < ma) {
+                    statusText = "🔴 SELL!";
+                    addToTradeHistory("SELL", price);
+                } else {
+                    statusText = "⚪ Hold";
+                }
+                tradingStatus.textContent = statusText;
+            } else {
+                tradingStatus.textContent = "Waiting...";
+            }
+        };
+
+        const addToTradeHistory = (signal, price) => {
+            const timestamp = new Date().toLocaleString();
+            const tradeItem = document.createElement('div');
+            tradeItem.className = 'trade-item';
+            tradeItem.innerHTML = `<p>${signal} at $${price.toFixed(4)} <small>(${timestamp})</small></p>`;
+            tradeHistory.insertBefore(tradeItem, tradeHistory.firstChild);
+            if (tradeHistory.children.length > 5) {
+                tradeHistory.removeChild(tradeHistory.lastChild);
+            }
+        };
+
+        const updateChart = () => {
+            const labels = Object.keys(exchangeRates).map(currency => currency.toUpperCase());
+            const data = Object.values(exchangeRates);
+
+            if (chart) chart.destroy();
+
+            chart = new Chart(ctx, {
+                type: 'bar',
+                data: { labels, datasets: [{ label: 'Rate (1 Pi)', data, backgroundColor: 'rgba(59, 130, 246, 0.6)', borderColor: 'rgba(59, 130, 246, 1)', borderWidth: 1 }] },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true, title: { display: true, text: 'Value', color: '#333' }, ticks: { color: '#333' } },
+                        x: { ticks: { color: '#333' } }
+                    },
+                    plugins: { legend: { display: false }, tooltip: { enabled: true }, zoom: { zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'xy' }, pan: { enabled: true, mode: 'xy' } } }
+                }
+            });
+        };
+
+        const historicalData = {
+            labels: ['Jan 24', 'Apr 24', 'Jul 24', 'Oct 24', 'Jan 25', 'Feb 25'],
+            datasets: [{
+                label: 'Pi Price ($)',
+                data: [0.3, 0.4, 0.45, 0.5, 0.55, 0.6],
+                borderColor: '#10b981',
+                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.3
+            }]
+        };
+
+        const updateHistoricalChart = () => {
+            if (historicalChart) historicalChart.destroy();
+            historicalChart = new Chart(historicalCtx, {
+                type: 'line',
+                data: historicalData,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true, title: { display: true, text: 'Price ($)', color: '#333' }, ticks: { color: '#333' } },
+                        x: { title: { display: true, text: 'Date', color: '#333' }, ticks: { color: '#333' } }
+                    },
+                    plugins: { legend: { display: true, labels: { color: '#333' } }, tooltip: { enabled: true }, zoom: { zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'xy' }, pan: { enabled: true, mode: 'xy' } } }
+                }
+            });
+        };
+
+        const exportChart = (chartId, filename) => {
+            const chart = Chart.getChart(chartId);
+            const labels = chart.data.labels;
+            const data = chart.data.datasets[0].data;
+            const csvContent = "data:text/csv;charset=utf-8," + ["Date,Value"].concat(labels.map((label, i) => `${label},${data[i]}`)).join("\n");
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `${filename}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        };
+
+        const toggleChartType = (chartId) => {
+            const chart = Chart.getChart(chartId);
+            chart.config.type = chart.config.type === 'line' ? 'bar' : 'line';
+            chart.update();
+        };
+
+        const resetChartZoom = (chartId) => {
+            const chart = Chart.getChart(chartId);
+            chart.resetZoom();
+        };
+
+        const toggleFullscreen = (chartId) => {
+            const chartCanvas = document.getElementById(chartId);
+            if (!document.fullscreenElement) {
+                chartCanvas.requestFullscreen().catch(err => console.error("Fullscreen error:", err));
+            } else {
+                document.exitFullscreen();
+            }
+        };
+
+        const fetchTweets = () => {
+            showLoading(tweetFeed, true);
+            const mockTweets = [
+                { text: "Pi Network is on fire! #PiTrack", timestamp: "Feb 26, 2025 10:00 AM" },
+                { text: "Hold tight! #HODL", timestamp: "Feb 25, 2025 3:00 PM" },
+                { text: "Updates soon!", timestamp: "Feb 24, 2025 9:00 AM" }
+            ];
+            setTimeout(() => {
+                tweetFeed.innerHTML = mockTweets.map(tweet => `<div class="tweet"><p>${tweet.text}</p><small>${tweet.timestamp}</small></div>`).join('');
+                showLoading(tweetFeed, false);
+            }, 1000);
+        };
+
+        const piPriceData = {
+            labels: ['2024', '2025', '2026', '2027', '2028', '2029', '2030'],
+            datasets: [{
+                label: 'Pi Price ($)',
+                data: [0.5, 2.8, 7.5, 25, 60, 150, 400],
+                borderColor: '#f59e0b',
+                backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.3,
+                pointRadius: 4,
+                pointHoverRadius: 6,
+                pointBackgroundColor: '#f59e0b'
+            }]
+        };
+
+        const fireSaleZones = [
+            { color: 'rgba(239, 68, 68, 0.3)', label: '🔥 Fire Sale (<$5)', yMax: 5 },
+            { color: 'rgba(249, 115, 22, 0.3)', label: '🟠 Cheap ($5-$20)', yMin: 5, yMax: 20 },
+            { color: 'rgba(234, 179, 8, 0.3)', label: '🟡 Accumulate ($20-$50)', yMin: 20, yMax: 50 },
+            { color: 'rgba(34, 197, 94, 0.3)', label: '🟢 HODL ($50-$100)', yMin: 50, yMax: 100 },
+            { color: 'rgba(59, 130, 246, 0.3)', label: '🔵 Moon ($100+)', yMin: 100 }
+        ];
+
+        const createPiChart = (ctx, title) => new Chart(ctx, {
+            type: 'line',
+            data: piPriceData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: true, labels: { color: '#fff' } },
+                    tooltip: { enabled: true, mode: 'index', intersect: false },
+                    annotation: { annotations: fireSaleZones.map(zone => ({ type: 'box', yMin: zone.yMin || 0, yMax: zone.yMax || Infinity, backgroundColor: zone.color, label: { content: zone.label, display: true, position: 'center', color: '#fff' } })) },
+                    zoom: { zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'xy' }, pan: { enabled: true, mode: 'xy' } }
+                },
+                scales: {
+                    y: { beginAtZero: true, title: { display: true, text: 'Price ($)', color: '#fff' }, grid: { color: 'rgba(0, 0, 0, 0.1)' }, ticks: { color: '#fff' } },
+                    x: { title: { display: true, text: 'Year', color: '#fff' }, grid: { display: false }, ticks: { color: '#fff' } }
+                },
+                animation: { duration: 1000, easing: 'easeOutQuart' }
+            }
+        });
+
+        piFireSaleChart = createPiChart(piCtx, 'Fire Sale');
+        piRainbowChart = createPiChart(piRainbowCtx, 'Rainbow');
+
+        const piBlocksData = {
+            labels: ['2024', '2025', '2026', '2027', '2028', '2029', '2030'],
+            datasets: [{
+                label: 'Blocks (M)',
+                data: [0.1, 0.5, 1.2, 3, 7, 15, 30],
+                borderColor: '#8b5cf6',
+                backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.3,
+                pointRadius: 4,
+                pointHoverRadius: 6,
+                pointBackgroundColor: '#8b5cf6'
+            }]
+        };
+
+        piBlocksChart = new Chart(piBlocksCtx, {
+            type: 'line',
+            data: piBlocksData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: true, labels: { color: '#fff' } },
+                    tooltip: { enabled: true, mode: 'index', intersect: false },
+                    zoom: { zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'xy' }, pan: { enabled: true, mode: 'xy' } }
+                },
+                scales: {
+                    y: { beginAtZero: true, title: { display: true, text: 'Blocks (M)', color: '#fff' }, grid: { color: 'rgba(0, 0, 0, 0.1)' }, ticks: { color: '#fff' } },
+                    x: { title: { display: true, text: 'Year', color: '#fff' }, grid: { display: false }, ticks: { color: '#fff' } }
+                },
+                animation: { duration: 1000, easing: 'easeOutQuart' }
+            }
+        });
+
+        convertButton.addEventListener('click', convertToCurrency);
+        fetchExchangeRates();
+        setInterval(fetchExchangeRates, 60000);
+        fetchTweets();
+        setInterval(fetchTweets, 300000);
+        checkTradeSignals();
+        setInterval(checkTradeSignals, 10000);
+    </script>
+</body>
+</html>
